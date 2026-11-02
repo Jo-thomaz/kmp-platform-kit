@@ -1,0 +1,12 @@
+appName: KmpPlatformKit
+packageId: dev.scaffold.kmp
+bundleId: dev.scaffold.kmp.ios
+versionName: 0.1.0
+versionCode: 1
+minSdk: 26
+compileSdk: 37
+targetSdk: 36
+iosDeploymentTarget: "18.0"
+javaVersion: 21
+features:
+  - reference
