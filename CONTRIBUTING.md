@@ -2,7 +2,7 @@
 
 ## 1. JDK Setup (Java 21 LTS)
 
-- A Java runtime is required to launch the Gradle Wrapper (`./gradlew` on macOS/Linux, `./gradlew.bat` on Windows).
+- A Java 17+ runtime is required to launch the Gradle Wrapper (`./gradlew` on macOS/Linux, `./gradlew.bat` on Windows).
 - This repository uses the Gradle Foojay Toolchain Resolver (`org.gradle.toolchains.foojay-resolver-convention`), which automatically downloads and provisions **JDK 21** (matching `javaVersion: 21` in `scaffold.yaml`) if it is not already installed on your machine.
 
 ---
@@ -44,4 +44,39 @@ If you build from a terminal or headless environment without opening Android Stu
 ## 3. iOS Toolchain (macOS Only)
 
 - Building and running the iOS app (`iosApp/`) and iOS simulator tests requires macOS with **Xcode 26.4+** and **XcodeGen** (`brew install xcodegen`).
-- On Windows and Linux, shared Kotlin Multiplatform tests, Android builds, Roborazzi screenshot tests, `checkDesignTokens`, `checkSwiftSources`, `:tools:architecture-test:test`, and `detekt` run locally; iOS framework linking and `xcodebuild test` run on the `macos-26` GitHub Actions runner.
+- On Windows and Linux, shared Kotlin Multiplatform tests, Android builds, Roborazzi screenshot tests, `checkDesignTokens`, `checkSwiftSources`, `checkNoMachinePaths`, `:tools:architecture-test:test`, and `detekt` run locally; iOS framework linking and `xcodebuild test` run on the `macos-26` GitHub Actions runner.
+
+---
+
+## 4. Run the Apps
+
+### Windows (PowerShell)
+1. **Verify prerequisites and build (`verifyAll`):**
+   ```powershell
+   .\scripts\setup.ps1
+   ```
+2. **Install and launch the Android app (requires a running Android emulator or connected device):**
+   ```powershell
+   .\scripts\run-android.ps1
+   ```
+
+### macOS (Bash/Zsh)
+1. **Verify prerequisites, run `verifyAll`, and generate `iosApp/iosApp.xcodeproj`:**
+   ```sh
+   ./scripts/setup.sh
+   ```
+2. **Build, install, and launch on Android (requires a running Android emulator/device) or iOS Simulator:**
+   ```sh
+   ./scripts/run-android.sh
+   ./scripts/run-ios.sh
+   ```
+
+### Linux (Bash)
+1. **Verify prerequisites and build (`verifyAll`):**
+   ```sh
+   ./scripts/setup.sh
+   ```
+2. **Install and launch the Android app (requires a running Android emulator or connected device):**
+   ```sh
+   ./scripts/run-android.sh
+   ```

@@ -223,7 +223,7 @@ class QualityConventionPlugin : Plugin<Project> {
 
             tasks.register("verifyAll") {
                 group = "verification"
-                description = "Runs all non-macOS repository verification checks including checkNoMachinePaths."
+                description = "Runs all non-macOS repository verification checks, Android builds, lint, and Roborazzi tests."
                 dependsOn(
                     "check",
                     "checkSwiftSources",
@@ -234,8 +234,12 @@ class QualityConventionPlugin : Plugin<Project> {
                 subprojects.forEach { sub ->
                     dependsOn(
                         sub.tasks.matching {
-                            it.name == "jvmTest" ||
+                            it.name == "check" ||
+                                it.name == "allTests" ||
                                 it.name == "detekt" ||
+                                it.name == "assembleDebug" ||
+                                it.name == "lintDebug" ||
+                                it.name == "verifyRoborazziDebug" ||
                                 (sub.path == ":tools:architecture-test" && it.name == "test")
                         },
                     )
