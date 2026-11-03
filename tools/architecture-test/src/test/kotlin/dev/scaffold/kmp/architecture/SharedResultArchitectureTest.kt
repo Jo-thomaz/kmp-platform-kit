@@ -5,7 +5,15 @@ import com.lemonappdev.konsist.api.verify.assertFalse
 import kotlin.test.Test
 
 class SharedResultArchitectureTest {
-    private val sharedScope = Konsist.scopeFromDirectory("shared")
+    private val sharedScope = Konsist.scopeFromDirectories(
+        listOf(
+            "shared/core/src",
+            "shared/domain/src",
+            "shared/data/src",
+            "shared/feature/reference/src",
+            "shared/umbrella/src",
+        ),
+    )
 
     private fun isKotlinResultTypeName(text: String): Boolean {
         val cleaned = text.trim()

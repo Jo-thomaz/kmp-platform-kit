@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   ios-verify:
-    name: iOS Typecheck & Tests
+    name: iOS Typecheck & Framework Link
     runs-on: macos-26
     steps:
       - name: Checkout repository
@@ -53,4 +53,5 @@ jobs:
           SWIFT_FILES=$(find iosApp/DesignSystem -name "*.swift" | tr '\n' ' ')
           xcrun --sdk iphonesimulator swiftc -typecheck -target "arm64-apple-ios${DEPLOYMENT_TARGET}-simulator" ${SWIFT_FILES}
 
-      # TODO(Step 4+): Link :shared:umbrella framework (with SKIE) and run xcodebuild test (unit + snapshot tests)
+      - name: Link SharedUmbrella framework for iosSimulatorArm64 (with SKIE)
+        run: ./gradlew :shared:umbrella:linkDebugFrameworkIosSimulatorArm64

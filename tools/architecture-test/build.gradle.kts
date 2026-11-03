@@ -25,8 +25,12 @@ dependencies {
 
 tasks.test {
     inputs.files(
-        rootProject.fileTree("shared") {
-            include("**/src/**/*.kt")
-        },
+        rootProject.files(
+            "shared/core/src",
+            "shared/domain/src",
+            "shared/data/src",
+            "shared/feature/reference/src",
+            "shared/umbrella/src",
+        ),
     )
 }
