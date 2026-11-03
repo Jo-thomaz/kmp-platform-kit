@@ -1,0 +1,14 @@
+naming:
+  FunctionNaming:
+    active: true
+    ignoreAnnotated:
+      - 'Composable'
+
+style:
+  ForbiddenImport:
+    active: true
+    forbiddenImports:
+      - value: 'kotlin.Result'
+        reason: 'Use dev.scaffold.kmp.core.Outcome instead of kotlin.Result in shared APIs.'
+      - value: 'kotlin.runCatching'
+        reason: 'Use dev.scaffold.kmp.core.Outcome instead of kotlin.Result / runCatching in shared APIs.'

@@ -1,0 +1,56 @@
+name: iOS CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "iosApp/**"
+      - "shared/**"
+      - "design-tokens/**"
+      - "build-logic/**"
+      - "gradle/**"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "iosApp/**"
+      - "shared/**"
+      - "design-tokens/**"
+      - "build-logic/**"
+      - "gradle/**"
+      - ".github/workflows/ios.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-verify:
+    name: iOS Typecheck & Tests
+    runs-on: macos-26
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Select Xcode 26.4
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.4.1.app
+          xcodebuild -version
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Type-check DesignSystem Swift files
+        run: |
+          DEPLOYMENT_TARGET=$(grep -E '^iosDeploymentTarget:' scaffold.yaml | sed -E 's/iosDeploymentTarget:[[:space:]]*"?([^"]+)"?/\1/' | tr -d '[:space:]')
+          echo "Using iOS deployment target: ${DEPLOYMENT_TARGET}"
+          SWIFT_FILES=$(find iosApp/DesignSystem -name "*.swift" | tr '\n' ' ')
+          xcrun --sdk iphonesimulator swiftc -typecheck -target "arm64-apple-ios${DEPLOYMENT_TARGET}-simulator" ${SWIFT_FILES}
+
+      # TODO(Step 4+): Link :shared:umbrella framework (with SKIE) and run xcodebuild test (unit + snapshot tests)

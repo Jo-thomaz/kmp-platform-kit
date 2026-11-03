@@ -24,6 +24,7 @@ Your goal is to complete each task with the **minimum tokens and tool calls** ne
 - Make small, patch-style edits. Never rewrite a whole file to change a few lines.
 - One logical change per step, then verify.
 - Follow existing patterns in the module; do not introduce new libraries without asking.
+- `scaffold.yaml` is a protected file: never change it without asking first.
 
 ## Running commands
 - Dev machine is Windows; use PowerShell syntax and `./gradlew.bat`, not bash-only commands. iOS code is verified only on the macOS CI runner.

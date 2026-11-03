@@ -72,17 +72,15 @@ docs/
 - The harness must read these files; it must not rely on knowledge baked into prompts.
 
 ## Instantiation
-- A generator command (Go CLI preferred: `scaffold new --config scaffold.yaml`) that creates a new project:
-  replaces names/ids, regenerates tokens, removes the reference feature on request, initialises git.
-- Record the scaffold version used in the new project (`.scaffold-version`) so upgrades can be applied later.
+- Project instantiation lives in a separate harness repository (not in this template repository).
+- This repository provides `scaffold.yaml` as the single source of truth for project-specific configuration (names, package/bundle IDs, SDK versions, enabled features).
 
 ## Working method
 1. Reply with a plan: module list, convention plugins, token pipeline choice, and CI jobs. Wait for approval.
-2. Build in this order: build-logic + version catalog → shared core/domain/data → design tokens pipeline → reference feature (shared) → Android reference screen → iOS reference screen (compile-only locally) → CI workflows → playbooks + architecture.yaml → generator CLI.
+2. Build in this order: build-logic + version catalog → shared core/domain/data → design tokens pipeline → reference feature (shared) → Android reference screen → iOS reference screen (compile-only locally) → CI workflows → playbooks + architecture.yaml.
 3. After each step: files changed, gates run + result, open issues. Then wait.
 
 ## Definition of done
 - `./gradlew check` passes on Linux (shared tests, Android build, screenshot tests, Konsist, detekt).
 - The iOS workflow file exists and is ready to run on a macOS runner; local status reported honestly as "unverified until CI".
-- `scaffold new` creates a fresh, building project with a different name and brand tokens.
 - Playbooks are complete enough that the harness can run `add-feature` without extra instructions.
