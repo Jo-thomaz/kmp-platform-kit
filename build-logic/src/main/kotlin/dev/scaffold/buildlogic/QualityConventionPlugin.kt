@@ -102,6 +102,52 @@ abstract class CheckSwiftSourcesTask : DefaultTask() {
     }
 }
 
+@CacheableTask
+abstract class CheckNoMachinePathsTask : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val trackedFiles: ConfigurableFileCollection
+
+    @get:OutputFile
+    abstract val stampFile: RegularFileProperty
+
+    @TaskAction
+    fun check() {
+        val forbiddenTokens = listOf(
+            "C:\\" + "Users\\",
+            "/" + "Users/",
+            "/" + "home/",
+            "file:" + "///",
+        )
+
+        val violations = mutableListOf<String>()
+        for (file in trackedFiles.files.sortedBy { it.path }) {
+            if (!file.isFile) continue
+            file.useLines { lines ->
+                lines.forEachIndexed { idx, line ->
+                    for (token in forbiddenTokens) {
+                        if (line.contains(token)) {
+                            violations.add("${file.name}:${idx + 1}: machine-specific path '$token' in `$line`")
+                        }
+                    }
+                }
+            }
+        }
+
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                "Machine-specific path check failed — tracked files must not contain " +
+                    "C:\\Users\\, /Users/, /home/, or file:///:\n" +
+                    violations.joinToString("\n") { "  - $it" },
+            )
+        }
+
+        val out = stampFile.get().asFile
+        out.parentFile.mkdirs()
+        out.writeText("OK")
+    }
+}
+
 class QualityConventionPlugin : Plugin<Project> {
     override fun apply(target: Project): Unit = with(target) {
         pluginManager.apply("base")
@@ -143,8 +189,57 @@ class QualityConventionPlugin : Plugin<Project> {
                 stampFile.set(layout.buildDirectory.file("reports/swift-check/check.stamp"))
             }
 
+            val checkNoMachinePathsTask = tasks.register<CheckNoMachinePathsTask>("checkNoMachinePaths") {
+                group = "verification"
+                description = "Fails if any tracked file contains machine-specific paths (C:\\Users\\, /Users/, /home/, file:///)"
+                trackedFiles.from(
+                    fileTree(layout.projectDirectory) {
+                        exclude(
+                            "**/.git/**",
+                            "**/.gradle/**",
+                            "**/.kotlin/**",
+                            "**/.idea/**",
+                            "**/build/**",
+                            "**/DerivedData/**",
+                            "**/*.xcodeproj/**",
+                            "**/*.xcworkspace/**",
+                            "**/local.properties",
+                            "**/.DS_Store",
+                            "**/.env",
+                            "**/*.iml",
+                            "**/*.png",
+                            "**/*.jar",
+                            "**/*.bin",
+                            "build-logic/src/main/kotlin/dev/scaffold/buildlogic/QualityConventionPlugin.kt",
+                        )
+                    },
+                )
+                stampFile.set(layout.buildDirectory.file("reports/machine-paths-check/check.stamp"))
+            }
+
             tasks.named("check") {
-                dependsOn(checkSwiftTask)
+                dependsOn(checkSwiftTask, checkNoMachinePathsTask)
+            }
+
+            tasks.register("verifyAll") {
+                group = "verification"
+                description = "Runs all non-macOS repository verification checks including checkNoMachinePaths."
+                dependsOn(
+                    "check",
+                    "checkSwiftSources",
+                    "checkNoMachinePaths",
+                    "detekt",
+                )
+                tasks.findByName("checkDesignTokens")?.let { dependsOn(it) }
+                subprojects.forEach { sub ->
+                    dependsOn(
+                        sub.tasks.matching {
+                            it.name == "jvmTest" ||
+                                it.name == "detekt" ||
+                                (sub.path == ":tools:architecture-test" && it.name == "test")
+                        },
+                    )
+                }
             }
         }
     }
