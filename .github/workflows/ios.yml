@@ -8,6 +8,8 @@ on:
       - "iosApp/**"
       - "shared/**"
       - "design-tokens/**"
+      - "docs/parity/reference/ios/**"
+      - "scripts/**"
       - "build-logic/**"
       - "gradle/**"
       - ".github/workflows/ios.yml"
@@ -16,6 +18,8 @@ on:
       - "iosApp/**"
       - "shared/**"
       - "design-tokens/**"
+      - "docs/parity/reference/ios/**"
+      - "scripts/**"
       - "build-logic/**"
       - "gradle/**"
       - ".github/workflows/ios.yml"
@@ -24,9 +28,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PINNED_SIMULATOR_NAME: "iPhone 17 Pro"
+  PINNED_SIMULATOR_OS: "26.4"
+  PINNED_SNAPSHOT_DEVICE_TAG: "iPhone17Pro_iOS26_4"
+
 jobs:
   ios-verify:
-    name: iOS Typecheck & Tests
+    name: iOS Build & Snapshot Tests
     runs-on: macos-26
     steps:
       - name: Checkout repository
@@ -43,6 +52,19 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      - name: Read Kotlin version from libs.versions.toml
+        id: kotlin-version
+        run: |
+          KOTLIN_VERSION=$(grep -E '^kotlin[[:space:]]*=' gradle/libs.versions.toml | sed -E 's/kotlin[[:space:]]*=[[:space:]]*"([^"]+)"/\1/' | tr -d '[:space:]')
+          echo "Kotlin version: ${KOTLIN_VERSION}"
+          echo "version=${KOTLIN_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Kotlin/Native toolchain (~/.konan)
+        uses: actions/cache@v6
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ steps.kotlin-version.outputs.version }}
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
@@ -53,4 +75,103 @@ jobs:
           SWIFT_FILES=$(find iosApp/DesignSystem -name "*.swift" | tr '\n' ' ')
           xcrun --sdk iphonesimulator swiftc -typecheck -target "arm64-apple-ios${DEPLOYMENT_TARGET}-simulator" ${SWIFT_FILES}
 
-      # TODO(Step 4+): Link :shared:umbrella framework (with SKIE) and run xcodebuild test (unit + snapshot tests)
+      - name: Link SharedUmbrella framework for iosSimulatorArm64 (with SKIE)
+        run: ./gradlew :shared:umbrella:linkDebugFrameworkIosSimulatorArm64
+
+      - name: Generate Xcode project with XcodeGen and run unit tests (dynamic simulator)
+        run: |
+          bash scripts/ios-project.sh --install-missing
+          UNIT_SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; data=json.load(sys.stdin)['devices']; sims=[d for r,ds in data.items() if 'iOS' in r for d in ds if d.get('isAvailable') and 'iPhone' in d.get('name','')]; print(sims[0]['udid'])")
+          echo "Running unit tests on dynamically selected iPhone Simulator UDID: ${UNIT_SIMULATOR_ID}"
+          xcodebuild test \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -destination "platform=iOS Simulator,id=${UNIT_SIMULATOR_ID}" \
+            -only-testing:iosAppTests/ReferenceViewModelTests \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Resolve pinned simulator for deterministic snapshot tests
+        id: pinned-sim
+        run: |
+          PINNED_UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, os, sys
+          target_name = os.environ['PINNED_SIMULATOR_NAME']
+          target_os = os.environ['PINNED_SIMULATOR_OS']
+          runtime_suffix = 'iOS-' + target_os.replace('.', '-')
+          data = json.load(sys.stdin).get('devices', {})
+          matches = [
+              d['udid']
+              for runtime, devices in data.items()
+              if runtime.endswith(runtime_suffix) or f'iOS {target_os}' in runtime
+              for d in devices
+              if d.get('isAvailable') and d.get('name') == target_name
+          ]
+          print(matches[0] if matches else '')
+          ")
+          if [ -z "${PINNED_UDID}" ]; then
+            echo "::error::Pinned simulator '${PINNED_SIMULATOR_NAME}' with iOS ${PINNED_SIMULATOR_OS} is not available on this runner. Refusing to fall back to another simulator for snapshot tests."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Resolved pinned snapshot simulator: ${PINNED_SIMULATOR_NAME} (iOS ${PINNED_SIMULATOR_OS}) -> UDID ${PINNED_UDID}"
+          echo "udid=${PINNED_UDID}" >> "$GITHUB_OUTPUT"
+
+      - name: Check iOS reference snapshot images for pinned simulator
+        id: snapshot-check
+        run: |
+          SNAPSHOT_DIR="${GITHUB_WORKSPACE}/docs/parity/reference/ios"
+          mkdir -p "${SNAPSHOT_DIR}"
+          EXPECTED_FILES=(
+            "Loading_${PINNED_SNAPSHOT_DEVICE_TAG}.light.png"
+            "Loading_${PINNED_SNAPSHOT_DEVICE_TAG}.dark.png"
+            "Content_${PINNED_SNAPSHOT_DEVICE_TAG}.light.png"
+            "Content_${PINNED_SNAPSHOT_DEVICE_TAG}.dark.png"
+            "Empty_${PINNED_SNAPSHOT_DEVICE_TAG}.light.png"
+            "Empty_${PINNED_SNAPSHOT_DEVICE_TAG}.dark.png"
+            "Error_${PINNED_SNAPSHOT_DEVICE_TAG}.light.png"
+            "Error_${PINNED_SNAPSHOT_DEVICE_TAG}.dark.png"
+          )
+          MATCHING_COUNT=$(find "${SNAPSHOT_DIR}" -maxdepth 1 -name "*_${PINNED_SNAPSHOT_DEVICE_TAG}.*.png" | wc -l | tr -d '[:space:]')
+          MISSING=0
+          for f in "${EXPECTED_FILES[@]}"; do
+            if [ ! -f "${SNAPSHOT_DIR}/${f}" ]; then
+              MISSING=1
+            fi
+          done
+          if [ "${MATCHING_COUNT}" -eq 8 ] && [ "${MISSING}" -eq 0 ]; then
+            echo "Found all 8 expected reference PNGs for ${PINNED_SNAPSHOT_DEVICE_TAG} in docs/parity/reference/ios/"
+            echo "record_mode=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Snapshot file mismatch in docs/parity/reference/ios/ (matching count: ${MATCHING_COUNT}, expected: 8)."
+            echo "Files found in docs/parity/reference/ios/:"
+            ls -1 "${SNAPSHOT_DIR}" || true
+            echo "Expected files:"
+            printf '  %s\n' "${EXPECTED_FILES[@]}"
+            echo "record_mode=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run deterministic iOS snapshot tests on pinned simulator
+        run: |
+          TEST_RUNNER_SNAPSHOT_RECORD_MODE="${{ steps.snapshot-check.outputs.record_mode }}" \
+          TEST_RUNNER_SNAPSHOT_DEVICE_TAG="${PINNED_SNAPSHOT_DEVICE_TAG}" \
+          TEST_RUNNER_SNAPSHOT_REFERENCE_DIR="${GITHUB_WORKSPACE}/docs/parity/reference/ios" \
+            xcodebuild test \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -destination "platform=iOS Simulator,id=${{ steps.pinned-sim.outputs.udid }}" \
+            -only-testing:iosAppTests/ReferenceScreenSnapshotTests \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload recorded iOS reference snapshots
+        if: steps.snapshot-check.outputs.record_mode == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-reference-snapshots
+          path: docs/parity/reference/ios/*.png
+          if-no-files-found: error
+
+      - name: Fail when reference snapshots were missing and recorded
+        if: steps.snapshot-check.outputs.record_mode == 'true'
+        run: |
+          echo "::error::Missing iOS reference snapshots for ${PINNED_SNAPSHOT_DEVICE_TAG} in docs/parity/reference/ios/. Recorded new reference snapshots and uploaded them in artifact 'ios-reference-snapshots'. Download the artifact, place the PNG files in docs/parity/reference/ios/, and commit them."
+          exit 1

@@ -25,6 +25,7 @@ Your goal is to complete each task with the **minimum tokens and tool calls** ne
 - One logical change per step, then verify.
 - Follow existing patterns in the module; do not introduce new libraries without asking.
 - `scaffold.yaml` is a protected file: never change it without asking first.
+- Keep every source file at or below 350 lines of code for readability and maintainability.
 
 ## Running commands
 - Dev machine is Windows; use PowerShell syntax and `./gradlew.bat`, not bash-only commands. iOS code is verified only on the macOS CI runner.
@@ -43,7 +44,7 @@ Your goal is to complete each task with the **minimum tokens and tool calls** ne
 ## Replies
 - Be terse. No restating the task, no narrating each step.
 - Final report format:
-  - **Changed:** files + one line each
+  - **Changed:** files + one line each (every change to `scaffold.yaml`, `gradle/libs.versions.toml` or `.github/workflows/` must include before/after values)
   - **Verified:** commands run + result
   - **Open issues:** anything unresolved (or "none")
 

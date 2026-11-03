@@ -25,7 +25,7 @@ class CreateReferenceItemUseCase(
 ) {
     suspend operator fun invoke(
         title: String,
-        description: String,
+        summary: String,
         id: UuidV7 = UuidV7.generate(),
         idempotencyKey: IdempotencyKey = IdempotencyKey.generate(),
     ): Outcome<ReferenceItem> {
@@ -41,7 +41,7 @@ class CreateReferenceItemUseCase(
         val item = ReferenceItem(
             id = id,
             title = cleanTitle,
-            description = description.trim(),
+            summary = summary.trim(),
             isCompleted = false,
         )
         return repository.saveItem(item = item, idempotencyKey = idempotencyKey)

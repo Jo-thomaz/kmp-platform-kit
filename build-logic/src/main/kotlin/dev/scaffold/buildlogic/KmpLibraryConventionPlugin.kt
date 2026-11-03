@@ -7,6 +7,8 @@ import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.plugin.mpp.Framework
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 class KmpLibraryConventionPlugin : Plugin<Project> {
@@ -31,6 +33,12 @@ class KmpLibraryConventionPlugin : Plugin<Project> {
             jvm()
             iosArm64()
             iosSimulatorArm64()
+
+            targets.withType<KotlinNativeTarget>().configureEach {
+                binaries.withType<Framework>().configureEach {
+                    binaryOption("bundleId", "${cfg.bundleId}.shared")
+                }
+            }
 
             compilerOptions {
                 freeCompilerArgs.add("-Xexpect-actual-classes")

@@ -30,27 +30,32 @@ abstract class CheckSwiftSourcesTask : DefaultTask() {
     @TaskAction
     fun check() {
         val forbiddenRules = listOf(
-            "Modifier" to Regex("""\bModifier\b"""),
-            ".dp" to Regex("""\b\d+\.dp\b"""),
-            ".sp" to Regex("""\b\d+\.sp\b"""),
-            "Composable" to Regex("""@?Composable\b"""),
-            "MaterialTheme" to Regex("""\bMaterialTheme\b"""),
-            "RoundedCornerShape" to Regex("""\bRoundedCornerShape\b"""),
-            "Arrangement" to Regex("""\bArrangement\b"""),
-            "Alignment.CenterVertically" to Regex("""\bAlignment\.CenterVertically\b"""),
-            "PaddingValues" to Regex("""\bPaddingValues\b"""),
-            "remember" to Regex("""\bremember\s*[({<]"""),
-            "Color(0xFF...)" to Regex("""\bColor\s*\(\s*0x[0-9A-Fa-f]{6,8}\s*\)"""),
+            "Modifier" to Regex("""(?<![A-Za-z0-9_])Modifier(?![A-Za-z0-9_])"""),
+            ".dp" to Regex("""(?<![A-Za-z0-9_])\d+\.dp(?![A-Za-z0-9_])"""),
+            ".sp" to Regex("""(?<![A-Za-z0-9_])\d+\.sp(?![A-Za-z0-9_])"""),
+            "Composable" to Regex("""(?<![A-Za-z0-9_])@?Composable(?![A-Za-z0-9_])"""),
+            "MaterialTheme" to Regex("""(?<![A-Za-z0-9_])MaterialTheme(?![A-Za-z0-9_])"""),
+            "RoundedCornerShape" to Regex("""(?<![A-Za-z0-9_])RoundedCornerShape(?![A-Za-z0-9_])"""),
+            "Arrangement" to Regex("""(?<![A-Za-z0-9_])Arrangement(?![A-Za-z0-9_])"""),
+            "Alignment.CenterVertically" to Regex("""(?<![A-Za-z0-9_])Alignment\.CenterVertically(?![A-Za-z0-9_])"""),
+            "PaddingValues" to Regex("""(?<![A-Za-z0-9_])PaddingValues(?![A-Za-z0-9_])"""),
+            "remember" to Regex("""(?<![A-Za-z0-9_])remember(?![A-Za-z0-9_])"""),
+            "Color(0xFF...)" to Regex("""(?<![A-Za-z0-9_])Color\s*\(\s*0x[0-9A-Fa-f]{6,8}\s*\)"""),
         )
 
         val violations = mutableListOf<String>()
         for (file in swiftFiles.files.sortedBy { it.path }) {
             if (!file.isFile) continue
+            var inBlockComment = false
             file.useLines { lines ->
-                lines.forEachIndexed { idx, line ->
+                lines.forEachIndexed { idx, rawLine ->
+                    val codeLine = stripComments(rawLine, inBlockComment).also {
+                        inBlockComment = it.second
+                    }.first
+                    if (codeLine.isBlank()) return@forEachIndexed
                     for ((label, regex) in forbiddenRules) {
-                        if (regex.containsMatchIn(line)) {
-                            violations.add("${file.name}:${idx + 1}: forbidden Compose identifier '$label' in `$line`")
+                        if (regex.containsMatchIn(codeLine)) {
+                            violations.add("${file.name}:${idx + 1}: forbidden Compose identifier '$label' in `$rawLine`")
                         }
                     }
                 }
@@ -60,6 +65,79 @@ abstract class CheckSwiftSourcesTask : DefaultTask() {
         if (violations.isNotEmpty()) {
             throw GradleException(
                 "Swift source check failed — Compose/Android identifiers leaked into iosApp/:\n" +
+                    violations.joinToString("\n") { "  - $it" },
+            )
+        }
+
+        val out = stampFile.get().asFile
+        out.parentFile.mkdirs()
+        out.writeText("OK")
+    }
+
+    private fun stripComments(line: String, startInBlockComment: Boolean): Pair<String, Boolean> {
+        val sb = StringBuilder()
+        var inBlock = startInBlockComment
+        var i = 0
+        while (i < line.length) {
+            if (inBlock) {
+                val closeIdx = line.indexOf("*/", i)
+                if (closeIdx == -1) {
+                    return sb.toString() to true
+                }
+                inBlock = false
+                i = closeIdx + 2
+            } else {
+                if (i + 1 < line.length && line[i] == '/' && line[i + 1] == '/') {
+                    break
+                } else if (i + 1 < line.length && line[i] == '/' && line[i + 1] == '*') {
+                    inBlock = true
+                    i += 2
+                } else {
+                    sb.append(line[i])
+                    i += 1
+                }
+            }
+        }
+        return sb.toString() to inBlock
+    }
+}
+
+@CacheableTask
+abstract class CheckNoMachinePathsTask : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val trackedFiles: ConfigurableFileCollection
+
+    @get:OutputFile
+    abstract val stampFile: RegularFileProperty
+
+    @TaskAction
+    fun check() {
+        val forbiddenTokens = listOf(
+            "C:\\" + "Users\\",
+            "/" + "Users/",
+            "/" + "home/",
+            "file:" + "///",
+        )
+
+        val violations = mutableListOf<String>()
+        for (file in trackedFiles.files.sortedBy { it.path }) {
+            if (!file.isFile) continue
+            file.useLines { lines ->
+                lines.forEachIndexed { idx, line ->
+                    for (token in forbiddenTokens) {
+                        if (line.contains(token)) {
+                            violations.add("${file.name}:${idx + 1}: machine-specific path '$token' in `$line`")
+                        }
+                    }
+                }
+            }
+        }
+
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                "Machine-specific path check failed — tracked files must not contain " +
+                    "C:\\Users\\, /Users/, /home/, or file:///:\n" +
                     violations.joinToString("\n") { "  - $it" },
             )
         }
@@ -111,8 +189,61 @@ class QualityConventionPlugin : Plugin<Project> {
                 stampFile.set(layout.buildDirectory.file("reports/swift-check/check.stamp"))
             }
 
+            val checkNoMachinePathsTask = tasks.register<CheckNoMachinePathsTask>("checkNoMachinePaths") {
+                group = "verification"
+                description = "Fails if any tracked file contains machine-specific paths (C:\\Users\\, /Users/, /home/, file:///)"
+                trackedFiles.from(
+                    fileTree(layout.projectDirectory) {
+                        exclude(
+                            "**/.git/**",
+                            "**/.gradle/**",
+                            "**/.kotlin/**",
+                            "**/.idea/**",
+                            "**/build/**",
+                            "**/DerivedData/**",
+                            "**/*.xcodeproj/**",
+                            "**/*.xcworkspace/**",
+                            "**/local.properties",
+                            "**/.DS_Store",
+                            "**/.env",
+                            "**/*.iml",
+                            "**/*.png",
+                            "**/*.jar",
+                            "**/*.bin",
+                            "build-logic/src/main/kotlin/dev/scaffold/buildlogic/QualityConventionPlugin.kt",
+                        )
+                    },
+                )
+                stampFile.set(layout.buildDirectory.file("reports/machine-paths-check/check.stamp"))
+            }
+
             tasks.named("check") {
-                dependsOn(checkSwiftTask)
+                dependsOn(checkSwiftTask, checkNoMachinePathsTask)
+            }
+
+            tasks.register("verifyAll") {
+                group = "verification"
+                description = "Runs all non-macOS repository verification checks, Android builds, lint, and Roborazzi tests."
+                dependsOn(
+                    "check",
+                    "checkSwiftSources",
+                    "checkNoMachinePaths",
+                    "detekt",
+                )
+                tasks.findByName("checkDesignTokens")?.let { dependsOn(it) }
+                subprojects.forEach { sub ->
+                    dependsOn(
+                        sub.tasks.matching {
+                            it.name == "check" ||
+                                it.name == "allTests" ||
+                                it.name == "detekt" ||
+                                it.name == "assembleDebug" ||
+                                it.name == "lintDebug" ||
+                                it.name == "verifyRoborazziDebug" ||
+                                (sub.path == ":tools:architecture-test" && it.name == "test")
+                        },
+                    )
+                }
             }
         }
     }

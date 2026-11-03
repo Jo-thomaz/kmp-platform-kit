@@ -16,13 +16,15 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class ReferenceItemDto(
     val id: String,
     val title: String,
-    val description: String,
+    @SerialName("description")
+    val summary: String,
     val isCompleted: Boolean = false,
 ) {
     fun toDomain(): Outcome<ReferenceItem> =
@@ -30,7 +32,7 @@ data class ReferenceItemDto(
             ReferenceItem(
                 id = uuid,
                 title = title,
-                description = description,
+                summary = summary,
                 isCompleted = isCompleted,
             )
         }
@@ -40,7 +42,7 @@ data class ReferenceItemDto(
             ReferenceItemDto(
                 id = item.id.value,
                 title = item.title,
-                description = item.description,
+                summary = item.summary,
                 isCompleted = item.isCompleted,
             )
     }

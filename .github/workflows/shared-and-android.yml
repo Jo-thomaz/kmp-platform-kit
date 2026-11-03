@@ -28,4 +28,4 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Run verification suite
-        run: ./gradlew checkDesignTokens :tools:architecture-test:test detekt check :androidApp:designsystem:assembleDebug
+        run: ./gradlew verifyAll

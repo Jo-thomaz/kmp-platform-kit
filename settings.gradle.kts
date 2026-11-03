@@ -38,7 +38,10 @@ include(
     ":shared:core",
     ":shared:domain",
     ":shared:data",
+    ":shared:feature:reference",
+    ":shared:umbrella",
     ":androidApp:designsystem",
+    ":androidApp:feature:reference",
+    ":androidApp:app",
     ":tools:architecture-test",
 )
-

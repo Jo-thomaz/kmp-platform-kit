@@ -46,7 +46,7 @@ class ReferenceUseCasesTest {
         val createUseCase = CreateReferenceItemUseCase(repo)
         val observeUseCase = ObserveReferenceItemsUseCase(repo)
 
-        val outcome = createUseCase(title = "   ", description = "Ignored")
+        val outcome = createUseCase(title = "   ", summary = "Ignored")
 
         assertTrue(outcome.isFailure)
         val error = assertIs<DomainError.Validation>(outcome.errorOrNull())
@@ -61,11 +61,11 @@ class ReferenceUseCasesTest {
         val observeUseCase = ObserveReferenceItemsUseCase(repo)
         val refreshUseCase = RefreshReferenceItemsUseCase(repo)
 
-        val created = createUseCase(title = "  Golden Item  ", description = "  Sample description ")
+        val created = createUseCase(title = "  Golden Item  ", summary = "  Sample summary ")
         assertTrue(created.isSuccess)
         val item = created.getOrNull()!!
         assertEquals("Golden Item", item.title)
-        assertEquals("Sample description", item.description)
+        assertEquals("Sample summary", item.summary)
         assertTrue(repo.lastIdempotencyKey != null)
 
         assertEquals(listOf(item), observeUseCase().first())
