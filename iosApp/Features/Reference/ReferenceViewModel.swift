@@ -93,13 +93,13 @@ public final class ReferenceViewModel: ObservableObject {
     }
 
     public func run() async {
+        let stateStream = presenter.makeStateStream()
+        let effectsStream = presenter.makeEffectsStream()
+
         if loadOnInit && !hasLoadedInitialData {
             hasLoadedInitialData = true
             presenter.onAction(ReferenceActionRefresh.shared)
         }
-
-        let stateStream = presenter.makeStateStream()
-        let effectsStream = presenter.makeEffectsStream()
 
         await withTaskGroup(of: Void.self) { [weak self] group in
             group.addTask { @MainActor [weak self] in

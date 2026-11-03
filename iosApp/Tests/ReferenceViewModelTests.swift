@@ -17,15 +17,25 @@ private final class FakeReferencePresenter: ReferencePresenting {
 
     func makeStateStream() -> AsyncStream<ReferenceUiState> {
         let initial = currentState
-        return AsyncStream { continuation in
-            self.stateContinuation = continuation
+        return AsyncStream { [weak self] continuation in
+            self?.stateContinuation = continuation
             continuation.yield(initial)
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.stateContinuation = nil
+                }
+            }
         }
     }
 
     func makeEffectsStream() -> AsyncStream<ReferenceEffect> {
-        AsyncStream { continuation in
-            self.effectsContinuation = continuation
+        AsyncStream { [weak self] continuation in
+            self?.effectsContinuation = continuation
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.effectsContinuation = nil
+                }
+            }
         }
     }
 
@@ -81,7 +91,7 @@ final class ReferenceViewModelTests: XCTestCase {
             await viewModel.run()
         }
 
-        try await waitUntilStateMatches(in: viewModel) { state in
+        try await waitUntilStateMatches(stateProvider: { viewModel.state }) { state in
             guard case .content(let content) = onEnum(of: state) else { return false }
             return content.items.count == 1
         }
@@ -96,7 +106,7 @@ final class ReferenceViewModelTests: XCTestCase {
 
         viewModel.onAction(ReferenceActionCreate(title: "Added After Reappear"))
 
-        try await waitUntilStateMatches(in: viewModel) { state in
+        try await waitUntilStateMatches(stateProvider: { viewModel.state }) { state in
             guard case .content(let content) = onEnum(of: state) else { return false }
             return content.items.contains { $0.title == "Added After Reappear" }
         }
@@ -110,22 +120,21 @@ final class ReferenceViewModelTests: XCTestCase {
         )
         weak var weakViewModel: ReferenceViewModel? = strongViewModel
 
-        let runTask = Task { [weak weakViewModel] in
-            guard let vm = weakViewModel else { return }
-            await vm.run()
+        var runTask: Task<Void, Never>? = Task { [weak weakViewModel] in
+            await weakViewModel?.run()
         }
 
-        let unwrappedViewModel = try XCTUnwrap(strongViewModel)
-        try await waitUntilStateMatches(in: unwrappedViewModel) { state in
+        try await waitUntilStateMatches(stateProvider: { weakViewModel?.state }) { state in
             guard case .content(let content) = onEnum(of: state) else { return false }
             return content.items.count == 1
         }
 
         let clock = ContinuousClock()
         let cancellationDuration = await clock.measure {
-            runTask.cancel()
-            await runTask.value
+            runTask?.cancel()
+            await runTask?.value
         }
+        runTask = nil
 
         XCTAssertLessThan(
             cancellationDuration,
@@ -135,6 +144,7 @@ final class ReferenceViewModelTests: XCTestCase {
         XCTAssertFalse(fakePresenter.isClosed, "Presenter must remain open while ReferenceViewModel is still retained")
 
         strongViewModel = nil
+        await Task.yield()
 
         XCTAssertNil(weakViewModel, "Expected ReferenceViewModel to deallocate after dropping strong references")
         XCTAssertTrue(fakePresenter.isClosed, "Expected presenter.close() to be called when ReferenceViewModel deallocates")
@@ -142,17 +152,17 @@ final class ReferenceViewModelTests: XCTestCase {
     }
 
     private func waitUntilStateMatches(
-        in viewModel: ReferenceViewModel,
+        stateProvider: () -> ReferenceUiState?,
         timeoutNanoseconds: UInt64 = 2_000_000_000,
         predicate: (ReferenceUiState) -> Bool
     ) async throws {
         let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
         while DispatchTime.now().uptimeNanoseconds < deadline {
-            if predicate(viewModel.state) {
+            if let currentState = stateProvider(), predicate(currentState) {
                 return
             }
             try await Task.sleep(nanoseconds: 20_000_000)
         }
-        XCTFail("Timed out waiting for ReferenceViewModel state update; current state: \(viewModel.state)")
+        XCTFail("Timed out waiting for ReferenceViewModel state update")
     }
 }
