@@ -7,7 +7,7 @@ import SharedUmbrella
 
 @MainActor
 final class ReferenceScreenSnapshotTests: XCTestCase {
-    private static let defaultPinnedDeviceTag = "iPhone17Pro_iOS26.4"
+    private static let defaultPinnedDeviceTag = "iPhone17Pro_iOS26_4"
 
     private var sampleItems: [ReferenceItem] {
         [

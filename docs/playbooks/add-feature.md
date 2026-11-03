@@ -53,7 +53,7 @@ Read `packageId` from `scaffold.yaml` (e.g., `dev.scaffold.kmp`) and derive `{pa
 | iOS SwiftUI Screens | `iosApp/Features/{Feature}/{Feature}Screen.swift` |
 | iOS ViewModel Lifecycle Tests | `iosApp/Tests/{Feature}ViewModelTests.swift` |
 | iOS Snapshot Tests | `iosApp/Tests/{Feature}ScreenSnapshotTests.swift` |
-| iOS Golden PNGs | `docs/parity/{feature}/ios/{State}_iPhone17Pro_iOS26.4.{light\|dark}.png` |
+| iOS Golden PNGs | `docs/parity/{feature}/ios/{State}_iPhone17Pro_iOS26_4.{light\|dark}.png` |
 | Parity Docs | `docs/parity/{feature}.md` and `docs/parity/MATRIX.md` |
 
 ---
@@ -98,6 +98,6 @@ Read `packageId` from `scaffold.yaml` (e.g., `dev.scaffold.kmp`) and derive `{pa
 - [ ] `:shared:feature:{feature}` unit tests cover every `UiState` transition (`Loading`, `Content`, `Empty`, `Error` -> `Retry` -> `Content`), rapid duplicate action deduplication with the same `IdempotencyKey`, `effects` emission, and `close()`.
 - [ ] `:shared:umbrella` exports `:shared:feature:{feature}` in both `commonMain` (`api`) and `framework { export(...) }`.
 - [ ] `:androidApp:feature:{feature}` compiles, constructs its presenter inside `ViewModelProvider.Factory`, calls `presenter.close()` in `onCleared()`, and records/verifies Light + Dark Roborazzi PNGs in `docs/parity/{feature}/android/`.
-- [ ] `iosApp/Features/{Feature}/` passes `checkSwiftSources`, uses `onEnum(of: state)` for exhaustive state switching, binds `.task { await viewModel.run() }`, and has XCTest unit tests (including `run()` cancellation within 1s, deallocation, and fake presenter `close()`) plus pinned-simulator (`iPhone17Pro_iOS26.4`) snapshot tests.
+- [ ] `iosApp/Features/{Feature}/` passes `checkSwiftSources`, uses `onEnum(of: state)` for exhaustive state switching, binds `.task { await viewModel.run() }`, and has XCTest unit tests (including `run()` cancellation within 1s, deallocation, and fake presenter `close()`) plus pinned-simulator (`iPhone17Pro_iOS26_4`) snapshot tests.
 - [ ] `docs/parity/{feature}.md` and `docs/parity/MATRIX.md` are updated.
 - [ ] All gate commands pass with 0 errors.

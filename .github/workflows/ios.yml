@@ -29,7 +29,7 @@ concurrency:
 env:
   PINNED_SIMULATOR_NAME: "iPhone 17 Pro"
   PINNED_SIMULATOR_OS: "26.4"
-  PINNED_SNAPSHOT_DEVICE_TAG: "iPhone17Pro_iOS26.4"
+  PINNED_SNAPSHOT_DEVICE_TAG: "iPhone17Pro_iOS26_4"
 
 jobs:
   ios-verify:
@@ -123,12 +123,33 @@ jobs:
         run: |
           SNAPSHOT_DIR="${GITHUB_WORKSPACE}/docs/parity/reference/ios"
           mkdir -p "${SNAPSHOT_DIR}"
-          PNG_COUNT=$(find "${SNAPSHOT_DIR}" -maxdepth 1 -name "*_${PINNED_SNAPSHOT_DEVICE_TAG}.*.png" | wc -l | tr -d '[:space:]')
-          echo "Found ${PNG_COUNT} reference PNG(s) for ${PINNED_SNAPSHOT_DEVICE_TAG} in docs/parity/reference/ios/"
-          if [ "${PNG_COUNT}" -lt 8 ]; then
-            echo "record_mode=true" >> "$GITHUB_OUTPUT"
-          else
+          EXPECTED_FILES=(
+            "Loading_${PINNED_SNAPSHOT_DEVICE_TAG}.light.png"
+            "Loading_${PINNED_SNAPSHOT_DEVICE_TAG}.dark.png"
+            "Content_${PINNED_SNAPSHOT_DEVICE_TAG}.light.png"
+            "Content_${PINNED_SNAPSHOT_DEVICE_TAG}.dark.png"
+            "Empty_${PINNED_SNAPSHOT_DEVICE_TAG}.light.png"
+            "Empty_${PINNED_SNAPSHOT_DEVICE_TAG}.dark.png"
+            "Error_${PINNED_SNAPSHOT_DEVICE_TAG}.light.png"
+            "Error_${PINNED_SNAPSHOT_DEVICE_TAG}.dark.png"
+          )
+          MATCHING_COUNT=$(find "${SNAPSHOT_DIR}" -maxdepth 1 -name "*_${PINNED_SNAPSHOT_DEVICE_TAG}.*.png" | wc -l | tr -d '[:space:]')
+          MISSING=0
+          for f in "${EXPECTED_FILES[@]}"; do
+            if [ ! -f "${SNAPSHOT_DIR}/${f}" ]; then
+              MISSING=1
+            fi
+          done
+          if [ "${MATCHING_COUNT}" -eq 8 ] && [ "${MISSING}" -eq 0 ]; then
+            echo "Found all 8 expected reference PNGs for ${PINNED_SNAPSHOT_DEVICE_TAG} in docs/parity/reference/ios/"
             echo "record_mode=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Snapshot file mismatch in docs/parity/reference/ios/ (matching count: ${MATCHING_COUNT}, expected: 8)."
+            echo "Files found in docs/parity/reference/ios/:"
+            ls -1 "${SNAPSHOT_DIR}" || true
+            echo "Expected files:"
+            printf '  %s\n' "${EXPECTED_FILES[@]}"
+            echo "record_mode=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run deterministic iOS snapshot tests on pinned simulator
