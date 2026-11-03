@@ -15,7 +15,7 @@ public struct ScaffoldSurfaceCard<Content: View>: View {
         .padding(tokens.spacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tokens.colors.backgroundSurface)
-        .clipShape(RoundedCornerShape(cornerRadius: tokens.radius.card))
+        .clipShape(RoundedRectangle(cornerRadius: tokens.radius.card))
         .overlay(
             RoundedRectangle(cornerRadius: tokens.radius.card)
                 .stroke(tokens.colors.borderSubtle, lineWidth: 1)
