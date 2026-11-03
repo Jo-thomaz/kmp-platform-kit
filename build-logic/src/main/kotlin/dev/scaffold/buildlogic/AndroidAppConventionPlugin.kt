@@ -29,6 +29,7 @@ class AndroidAppConventionPlugin : Plugin<Project> {
                 targetSdk = cfg.targetSdk
                 versionCode = cfg.versionCode
                 versionName = cfg.versionName
+                manifestPlaceholders["appName"] = cfg.appName
             }
 
             buildFeatures {

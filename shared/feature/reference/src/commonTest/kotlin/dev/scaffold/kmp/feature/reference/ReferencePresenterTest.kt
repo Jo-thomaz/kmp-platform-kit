@@ -12,8 +12,12 @@ import dev.scaffold.kmp.domain.usecase.RefreshReferenceItemsUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -91,11 +95,11 @@ class ReferencePresenterTest {
     }
 
     @Test
-    fun errorToRetryToContentAndItemTappedTransitions() = runTest {
+    fun errorToRetryToContentAndItemTappedEmitsNavigationEffect() = runTest {
         val sampleItem = ReferenceItem(
             id = UuidV7.generate(timestampMillis = 1_762_000_001_000L),
             title = "Reference Item",
-            description = "From retry",
+            summary = "From retry",
         )
         val repo = FakeReferenceRepository().apply {
             refreshOutcome = Outcome.failure(DomainError.Network(message = "Offline", statusCode = 503))
@@ -121,6 +125,9 @@ class ReferencePresenterTest {
         presenter.onAction(ReferenceAction.ItemTapped(sampleItem.id))
         val tappedState = assertIs<ReferenceUiState.Content>(presenter.state.value)
         assertEquals(sampleItem.id, tappedState.selectedItemId)
+
+        val effect = presenter.effects.first()
+        assertEquals(ReferenceEffect.NavigateToDetail(sampleItem.id), effect)
     }
 
     @Test
@@ -144,7 +151,6 @@ class ReferencePresenterTest {
         }
         val presenter = createPresenter(repo, this)
 
-        // Dispatch two Create actions before the first completes:
         presenter.onAction(ReferenceAction.Create("Fast Tap"))
         presenter.onAction(ReferenceAction.Create("Fast Tap"))
         advanceUntilIdle()
@@ -185,5 +191,22 @@ class ReferencePresenterTest {
         )
         val content = assertIs<ReferenceUiState.Content>(presenter.state.value)
         assertEquals("Idempotent Item", content.items.single().title)
+    }
+
+    @Test
+    fun closeCancelsPresenterScopeAndClosesEffectsChannel() = runTest {
+        val repo = FakeReferenceRepository()
+        val presenterScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val presenter = ReferencePresenter(
+            observeItemsUseCase = ObserveReferenceItemsUseCase(repo),
+            refreshItemsUseCase = RefreshReferenceItemsUseCase(repo),
+            createItemUseCase = CreateReferenceItemUseCase(repo),
+            scope = presenterScope,
+        )
+
+        assertTrue(presenterScope.isActive)
+        presenter.close()
+        assertFalse(presenterScope.isActive)
+        assertTrue(presenter.effects.toList().isEmpty())
     }
 }

@@ -5,6 +5,7 @@ import dev.scaffold.kmp.core.IdempotencyKey
 import dev.scaffold.kmp.core.UuidV7
 import dev.scaffold.kmp.data.local.InMemoryReferenceLocalDataSource
 import dev.scaffold.kmp.data.remote.KtorReferenceRemoteDataSource
+import dev.scaffold.kmp.data.remote.ReferenceItemDto
 import dev.scaffold.kmp.data.repository.DefaultReferenceRepository
 import dev.scaffold.kmp.domain.model.ReferenceItem
 import io.ktor.client.HttpClient
@@ -18,13 +19,40 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class DefaultReferenceRepositoryTest {
+    @Test
+    fun referenceItemDtoSerializesSummaryPropertyAsDescriptionJsonField() {
+        val id = UuidV7.generate(timestampMillis = 1_762_000_000_050L)
+        val domainItem = ReferenceItem(
+            id = id,
+            title = "Wire Contract",
+            summary = "Serialized as description",
+            isCompleted = true,
+        )
+        val dto = ReferenceItemDto.fromDomain(domainItem)
+        val encodedJson = Json.encodeToString(dto)
+
+        assertTrue(
+            encodedJson.contains(""""description":"Serialized as description""""),
+            "Expected wire JSON to use 'description' field, but was: $encodedJson",
+        )
+        assertFalse(
+            encodedJson.contains(""""summary""""),
+            "Wire JSON must not expose Kotlin property name 'summary': $encodedJson",
+        )
+
+        val decoded = Json.decodeFromString<ReferenceItemDto>(encodedJson).toDomain()
+        assertEquals(domainItem, decoded.getOrNull())
+    }
+
     @Test
     fun refreshItemsUpdatesObservedFlowFromRemote() = runTest {
         val sampleId = UuidV7.generate(timestampMillis = 1_762_000_000_100L)
@@ -53,6 +81,7 @@ class DefaultReferenceRepositoryTest {
         assertEquals(1, networkCalls)
         assertEquals(1, repo.observeItems().first().size)
         assertEquals("First", repo.observeItems().first().single().title)
+        assertEquals("Desc", repo.observeItems().first().single().summary)
     }
 
     @Test
@@ -79,7 +108,7 @@ class DefaultReferenceRepositoryTest {
         )
 
         val outcome = repo.saveItem(
-            item = ReferenceItem(id = id, title = "Saved", description = "Body"),
+            item = ReferenceItem(id = id, title = "Saved", summary = "Body"),
             idempotencyKey = key,
         )
 
@@ -108,7 +137,7 @@ class DefaultReferenceRepositoryTest {
         )
 
         val outcome = repo.saveItem(
-            item = ReferenceItem(id = id, title = "Conflict", description = "Body"),
+            item = ReferenceItem(id = id, title = "Conflict", summary = "Body"),
             idempotencyKey = key,
         )
 

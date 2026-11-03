@@ -41,5 +41,7 @@ include(
     ":shared:feature:reference",
     ":shared:umbrella",
     ":androidApp:designsystem",
+    ":androidApp:feature:reference",
+    ":androidApp:app",
     ":tools:architecture-test",
 )

@@ -6,6 +6,7 @@ local.properties
 .DS_Store
 .kotlin/
 iosApp/build/
+iosApp/iosApp.xcodeproj/
 iosApp/*.xcodeproj/xcuserdata/
 iosApp/*.xcworkspace/xcuserdata/
 DerivedData/

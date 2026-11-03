@@ -26,3 +26,7 @@ sealed interface ReferenceAction {
     data class ItemTapped(val id: UuidV7) : ReferenceAction
     data class Create(val title: String) : ReferenceAction
 }
+
+sealed interface ReferenceEffect {
+    data class NavigateToDetail(val id: UuidV7) : ReferenceEffect
+}

@@ -9,9 +9,13 @@ import dev.scaffold.kmp.domain.usecase.CreateReferenceItemUseCase
 import dev.scaffold.kmp.domain.usecase.ObserveReferenceItemsUseCase
 import dev.scaffold.kmp.domain.usecase.RefreshReferenceItemsUseCase
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 class ReferencePresenter(
@@ -22,6 +26,9 @@ class ReferencePresenter(
 ) {
     private val _state = MutableStateFlow<ReferenceUiState>(ReferenceUiState.Loading)
     val state: StateFlow<ReferenceUiState> = _state.asStateFlow()
+
+    private val _effects = Channel<ReferenceEffect>(Channel.BUFFERED)
+    val effects: Flow<ReferenceEffect> = _effects.receiveAsFlow()
 
     private var latestItems: List<ReferenceItem> = emptyList()
     private var selectedItemId: UuidV7? = null
@@ -53,6 +60,11 @@ class ReferencePresenter(
             is ReferenceAction.ItemTapped -> handleItemTapped(action.id)
             is ReferenceAction.Create -> performCreate(action.title)
         }
+    }
+
+    fun close() {
+        _effects.close()
+        scope.cancel()
     }
 
     private fun performRefresh() {
@@ -89,6 +101,7 @@ class ReferencePresenter(
         if (current is ReferenceUiState.Content) {
             _state.value = current.copy(selectedItemId = id)
         }
+        _effects.trySend(ReferenceEffect.NavigateToDetail(id))
     }
 
     private fun performCreate(title: String) {
@@ -114,7 +127,7 @@ class ReferencePresenter(
                 when (
                     val outcome = createItemUseCase(
                         title = request.title,
-                        description = "",
+                        summary = "",
                         id = request.id,
                         idempotencyKey = request.idempotencyKey,
                     )

@@ -16,14 +16,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 object SharedUmbrellaFactory {
+    fun createSeededReferencePresenter(): ReferencePresenter =
+        createSeededReferencePresenter(
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+        )
+
     fun createSeededReferencePresenter(
-        scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+        scope: CoroutineScope,
     ): ReferencePresenter {
         val seedItems = listOf(
             ReferenceItem(
                 id = UuidV7.generate(timestampMillis = 1_762_000_000_001L),
                 title = "Offline-first architecture",
-                description = "Shared presenter state rendered natively in Compose and SwiftUI",
+                summary = "Shared presenter state rendered natively in Compose and SwiftUI",
             ),
         )
         val local = InMemoryReferenceLocalDataSource(initialItems = seedItems)
